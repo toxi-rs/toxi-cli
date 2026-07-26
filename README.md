@@ -9,7 +9,7 @@ Command-line tooling for Toxi. The package name is `toxi-cli`, and the installed
 cargo install toxi-cli
 
 # Install this generated CLI build explicitly
-cargo install toxi-cli --version 2.3.3
+cargo install toxi-cli --version 3.0.0
 
 # Install from the local checkout
 cargo install --path .
