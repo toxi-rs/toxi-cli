@@ -1,4 +1,4 @@
-# <div align="center">✨ CHANGELOG</div>
+# <div align="center"> CHANGELOG</div>
 
 All notable changes to this project will be documented in this file.
 
@@ -8,30 +8,30 @@ This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ## [2.1.0] - 2026-25-01
 
-### ✨ Features
+###  Features
 
 - N/A
 
-### 🐛 Bug Fixes
+###  Bug Fixes
 
 - Fixed  and aliased ToxiRequest and ToxiResponse types to Request and Response respectively
 
-### 🚀 Performance Improvements
+###  Performance Improvements
 
 - Improved Hot reload functioning.
 
-### 📝 Documentation
+###  Documentation
 
 - N/A
 
-### 🎨 Styling
+###  Styling
 
 - Enhanced the full-stack template with improved styling, a better HTML structure, and the Toxi logo.
 
-### 🧪 Tests
+###  Tests
 
 - N/A
 
-### ⚙️ Miscellaneous
+###  Miscellaneous
 
 - N/A
