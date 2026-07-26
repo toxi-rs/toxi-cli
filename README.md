@@ -202,4 +202,4 @@ The generated project configuration file is `toxi.toml`.
 
 ## License
 
-MIT
+MIT OR Apache-2.0
