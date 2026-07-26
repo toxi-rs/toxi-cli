@@ -965,7 +965,7 @@ async fn main() -> Result<()> {
 
     // Serve static files from `public/` as a catch-all fallback.
     //   GET /css/style.css    ->  public/css/style.css
-    //   GET /images/logo.svg  ->  public/images/logo.svg
+    //   GET /images/toxi.svg  ->  public/images/toxi.svg
     app.router_mut().get("/*", serve_static);
 
     // ── 3. Middleware ──  4. Server ────────────────────────────────────
