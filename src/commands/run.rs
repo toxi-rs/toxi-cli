@@ -52,7 +52,7 @@ pub fn run_file(file: &str, extra_deps: Option<&str>) -> Result<(), Box<dyn std:
         return Err("File must be a .rs file".into());
     }
 
-    output::header("Toxi Runner v3.0.0");
+    output::header("Toxi Runner v3.1.0");
     output::debug(&format!("Executing file: {}", file_path.display()));
 
     // Check if we're inside a Cargo project

@@ -62,7 +62,7 @@ pub fn run_tinker() -> Result<(), Box<dyn std::error::Error>> {
 
     let tinker_path = Path::new("src/bin/_tinker.rs");
 
-    println!("Toxi Tinker v3.0.0");
+    println!("Toxi Tinker v3.1.0");
     if has_lib {
         println!("Library crate detected: using `{crate_ident}::*` imports.");
     } else {

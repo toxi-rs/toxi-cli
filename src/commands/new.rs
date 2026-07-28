@@ -273,7 +273,7 @@ async fn test_health_endpoint() {
 fn create_cargo_toml(path: &Path, name: &str, p_type: ProjectType) -> std::io::Result<()> {
     // Dependency version for consumer projects — always points to the latest
     // published release on crates.io, not the CLI's own version.
-    const TOXI_VERSION: &str = "3.0.0";
+    const TOXI_VERSION: &str = "3.1.0";
     let (features_comment, features_list, extra_deps) = match p_type {
         ProjectType::Fullstack => (
             "full — everything included",
