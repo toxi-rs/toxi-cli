@@ -19,7 +19,7 @@ clap = { version = "4.5.31", features = ["derive"] }
 bytes = "1.10.0"
 http-body-util = "0.1.3"
 hyper = "1.6.0"
-toxi-core = { version = "3.1.1-2", path = "../toxi-core" }
+toxi-core = { version = "3.1", path = "../toxi-core" }
 toxi-middleware = { version = "3.1.0", path = "../toxi-middleware" }
 toxi-db = { version = "3.1.0", path = "../toxi-db" }
 toxi-config = { version = "3.1.0", path = "../toxi-config" }
@@ -27,7 +27,7 @@ toxi-queue = { version = "3.1.0", path = "../toxi-queue" }
 toxi-auth = { version = "3.1.0", path = "../toxi-auth" }
 toxi-template = { version = "3.1.0", path = "../toxi-template" }
 toxi-cache = { version = "3.1.0", path = "../toxi-cache" }
-toxi-realtime = { version = "3.1.0", path = "../toxi-realtime" }
+toxi-realtime = { version = "3.1", path = "../toxi-realtime" }
 toxi-mail = { version = "3.1.0", path = "../toxi-mail" }
 toxi-storage = { version = "3.1.0", path = "../toxi-storage" }
 toxi-macros = { version = "3.1.0", path = "../toxi-macros" }
