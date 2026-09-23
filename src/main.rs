@@ -3,7 +3,6 @@ use std::path::Path;
 use std::process::Command;
 
 mod commands;
-mod alias_hint;
 
 use commands::output::{error, info, header, compile_error, runtime_error, build_failed, build_success, init_colors};
 
@@ -316,8 +315,7 @@ enum QueueCommand {
 #[tokio::main]
 async fn main() {
     init_colors();
-    alias_hint::print_alias_hint();
-    
+
     let cli = Cli::parse();
 
     let result: Result<(), Box<dyn std::error::Error>> = match cli.command {

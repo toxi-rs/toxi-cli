@@ -1,6 +1,6 @@
 [package]
 name = "toxi-cli"
-version = "3.1.0"
+version = "3.1.1"
 edition = "2021"
 authors = ["Meshack Bahati Ouma <bahatikylemeshack@gmail.com>"]
 description = "CLI tool for the Toxi web framework"
@@ -25,16 +25,10 @@ toxi-db = { version = "3", path = "../toxi-db" }
 toxi-config = { version = "3", path = "../toxi-config" }
 toxi-queue = { version = "3", path = "../toxi-queue" }
 toxi-auth = { version = "3", path = "../toxi-auth" }
-toxi-template = { version = "3", path = "../toxi-template" }
-toxi-cache = { version = "3", path = "../toxi-cache" }
-toxi-realtime = { version = "3", path = "../toxi-realtime" }
-toxi-mail = { version = "3", path = "../toxi-mail" }
-toxi-storage = { version = "3", path = "../toxi-storage" }
-toxi-macros = { version = "3", path = "../toxi-macros" }
-toxi-utils = { version = "3", path = "../toxi-utils" }
-toxi-openapi = { version = "3", path = "../toxi-openapi" }
-toxi-graphql = { version = "3", path = "../toxi-graphql" }
-toxi-plugin = { version = "3", path = "../toxi-plugin" }
+# template/cache/realtime/mail/storage/macros/utils/openapi/graphql/plugin were
+# removed: the CLI never imports them, they only show up in scaffold template
+# strings in commands/new.rs and commands/run.rs. Keeping them made every CLI
+# build compile aws-sdk-s3 and juniper for nothing.
 tokio = { version = "1.42.0", features = ["full"] }
 chrono = "0.4.42"
 dialoguer = "0.11.0"

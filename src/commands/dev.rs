@@ -110,7 +110,7 @@ pub fn start_dev_server(options: DevOptions) -> Result<(), Box<dyn std::error::E
     start_binary(&child_process, &binary_path, &options.run)?;
 
     let watch_paths = if options.watch.is_empty() {
-        vec![project_root.clone()]
+        default_watch_paths(&project_root)
     } else {
         options.watch.clone()
     };
@@ -136,9 +136,12 @@ pub fn start_dev_server(options: DevOptions) -> Result<(), Box<dyn std::error::E
     let mut last_restart = Instant::now();
     let debounce_duration = Duration::from_millis(200);
 
-    for res in rx {
-        match res {
-            Ok(event) => {
+    loop {
+        // Poll with a timeout. A change that lands mid-build must rebuild
+        // once the build finishes. Blocking recv would wait for another file
+        // change that may never come, and that rebuild is lost.
+        match rx.recv_timeout(Duration::from_millis(200)) {
+            Ok(Ok(event)) => {
                 if should_reload(&event, &ignore_patterns) {
                     let now = Instant::now();
                     if now.duration_since(last_restart) > debounce_duration {
@@ -147,7 +150,9 @@ pub fn start_dev_server(options: DevOptions) -> Result<(), Box<dyn std::error::E
                     }
                 }
             }
-            Err(err) => println!("Watch error: {err:?}"),
+            Ok(Err(err)) => println!("Watch error: {err:?}"),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
         }
 
         // Try to rebuild if requested and not already building
@@ -160,7 +165,7 @@ pub fn start_dev_server(options: DevOptions) -> Result<(), Box<dyn std::error::E
 
             println!("\n{}", "Changes detected, rebuilding...".yellow());
 
-            // Spawn a build thread — the old server keeps running
+            // Spawn a build thread so the old server keeps running
             let root = project_root.clone();
             let bname = bin_name.clone();
             let child_lock = child_process.clone();
@@ -178,7 +183,7 @@ pub fn start_dev_server(options: DevOptions) -> Result<(), Box<dyn std::error::E
                 } else {
                     println!(
                         "{}",
-                        "Build failed — old server is still running.".yellow()
+                        "Build failed, old server is still running.".yellow()
                     );
                 }
                 *build_flag.lock().unwrap() = false;
@@ -239,20 +244,70 @@ fn resolve_binary_path(project_root: &Path, options: &RunOptions) -> (String, Pa
         .unwrap_or_else(|| {
             // Read package name from Cargo.toml
             let cargo_toml = project_root.join("Cargo.toml");
-            if let Ok(content) = std::fs::read_to_string(&cargo_toml) {
-                for line in content.lines() {
-                    if let Some(name) = line.strip_prefix("name = ") {
-                        return name
-                            .trim_matches('"')
-                            .trim()
-                            .to_string();
-                    }
-                }
-            }
-            "app".to_string()
+            std::fs::read_to_string(&cargo_toml)
+                .ok()
+                .and_then(|content| package_name_from_manifest(&content))
+                .unwrap_or_else(|| "app".to_string())
         });
     let binary_path = project_root.join("target").join("debug").join(&bin_name);
     (bin_name, binary_path)
+}
+
+/// Read [package] name from Cargo.toml text.
+///
+/// Only the [package] section counts. Workspace manifests have other name
+/// keys that would resolve to the wrong binary.
+fn package_name_from_manifest(content: &str) -> Option<String> {
+    let mut in_package = false;
+    for raw in content.lines() {
+        let line = raw.trim();
+        if line.starts_with('[') {
+            in_package = line == "[package]";
+            continue;
+        }
+        if !in_package {
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("name") {
+            if let Some(value) = rest.trim_start().strip_prefix('=') {
+                let value = value
+                    .split('#')
+                    .next()
+                    .unwrap_or("")
+                    .trim()
+                    .trim_matches('"')
+                    .trim();
+                if !value.is_empty() {
+                    return Some(value.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Watch source and config paths only.
+///
+/// Watching the whole project root also watches target/ and .git/, so every
+/// build fires file events and triggers another rebuild.
+fn default_watch_paths(project_root: &Path) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    for dir in ["src", "migrations", "seeds", "templates", "tests"] {
+        let p = project_root.join(dir);
+        if p.exists() {
+            paths.push(p);
+        }
+    }
+    for file in ["Cargo.toml", "Cargo.lock", "toxi.toml", ".env"] {
+        let p = project_root.join(file);
+        if p.exists() {
+            paths.push(p);
+        }
+    }
+    if paths.is_empty() {
+        paths.push(project_root.to_path_buf());
+    }
+    paths
 }
 
 /// Gracefully stop a running process with SIGTERM, then SIGKILL if needed.
@@ -261,11 +316,12 @@ fn graceful_stop(child_lock: &Arc<Mutex<Option<Child>>>) {
     if let Some(ref mut child) = *lock {
         let pid = child.id();
 
-        // SIGTERM — allow graceful shutdown for in-flight requests
+        // SIGTERM first so in-flight requests finish.
+        // Toxi servers take up to 3s to drain, so wait 5s before killing.
         let _ = kill(Pid::from_raw(pid as i32), Signal::SIGTERM);
 
-        // Wait up to 2s for graceful shutdown
-        let deadline = Instant::now() + Duration::from_secs(2);
+        // Wait up to 5s for graceful shutdown
+        let deadline = Instant::now() + Duration::from_secs(5);
         while Instant::now() < deadline {
             match child.try_wait() {
                 Ok(Some(_)) => {
@@ -395,7 +451,7 @@ fn default_ignore_patterns(extra: &[String]) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{default_ignore_patterns, is_reloadable_path, should_ignore_path};
+    use super::{default_ignore_patterns, default_watch_paths, is_reloadable_path, package_name_from_manifest, should_ignore_path};
     use std::path::Path;
 
     #[test]
@@ -421,5 +477,51 @@ mod tests {
         assert!(is_reloadable_path(Path::new("src/main.rs")));
         assert!(is_reloadable_path(Path::new("toxi.toml")));
         assert!(!is_reloadable_path(Path::new("README.txt")));
+    }
+
+    #[test]
+    fn reads_package_name_only_from_package_section() {
+        let manifest = "[workspace]\nmembers = [\"a\"]\n\n[workspace.package]\nname = \"workspace-name\"\n\n[package]\nname = \"real-bin\"\nversion = \"0.1.0\"\n";
+        assert_eq!(
+            package_name_from_manifest(manifest).as_deref(),
+            Some("real-bin")
+        );
+    }
+
+    #[test]
+    fn reads_package_name_without_spaces_and_comment() {
+        let manifest = "[package]\nname=\"tight\" # trailing comment\n";
+        assert_eq!(
+            package_name_from_manifest(manifest).as_deref(),
+            Some("tight")
+        );
+    }
+
+    #[test]
+    fn returns_none_without_package_section() {
+        let manifest = "[workspace]\nmembers = []\n";
+        assert_eq!(package_name_from_manifest(manifest), None);
+    }
+
+    #[test]
+    fn default_watch_paths_prefers_src_over_root() {
+        let root = std::env::temp_dir().join(format!(
+            "toxi-dev-watch-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(root.join("src")).expect("create src");
+        std::fs::write(root.join("Cargo.toml"), "[package]\nname = \"x\"\n")
+            .expect("write manifest");
+
+        let paths = default_watch_paths(&root);
+        assert!(paths.iter().any(|p| p.ends_with("src")));
+        assert!(paths.iter().any(|p| p.ends_with("Cargo.toml")));
+        assert!(!paths.iter().any(|p| p == &root));
+
+        std::fs::remove_dir_all(&root).ok();
     }
 }

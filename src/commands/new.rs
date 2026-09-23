@@ -1768,6 +1768,11 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
+    // run_test changes the process working directory, so these tests cannot
+    // run at the same time. Serial also keeps four cold cargo checks from
+    // eating all RAM on small machines.
+    static CWD_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     fn project_type_arg(p_type: ProjectType) -> &'static str {
         match p_type {
             ProjectType::Fullstack => "fullstack",
@@ -1816,6 +1821,7 @@ mod tests {
     }
 
     fn run_test(p_type: ProjectType) {
+        let _guard = CWD_GUARD.lock().expect("cwd test lock");
         let dir = tempfile::tempdir().expect("tempdir");
         let original = std::env::current_dir().expect("current_dir");
         std::env::set_current_dir(dir.path()).expect("chdir");
