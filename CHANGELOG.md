@@ -6,6 +6,16 @@ This project adheres to [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [3.1.2] - 2026-09-23
+
+### Fixed
+
+- `dev` no longer terminates when the initial build fails. The watcher remains active without a running server, reports that it is waiting for fixes, and starts the server upon the first successful rebuild, with the consequence that compilation errors can be corrected with realtime feedback instead of requiring a manual restart.
+- `dev` reports a server that exits on its own without terminating the watcher, clears the process slot so the next successful build starts a fresh process, and distinguishes a fresh start from a graceful restart in its output.
+- `dev` inherits standard output in the build helper rather than piping it without draining, since an undrained pipe risks deadlock when the buffer fills and the build would stall while the watcher waits.
+
+---
+
 ## [3.1.1] - 2026-09-23
 
 ### Fixed

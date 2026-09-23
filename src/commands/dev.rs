@@ -100,14 +100,16 @@ pub fn start_dev_server(options: DevOptions) -> Result<(), Box<dyn std::error::E
     output::success("Starting Toxi development server");
     output::info("Watching for file changes");
 
-    // Build once, then start the server
-    if !build_project(&project_root, &bin_name)? {
-        output::error("Initial build failed");
-        std::process::exit(1);
-    }
-
+    // Build once, then start the server when the build succeeds. A failed
+    // initial build must not terminate the watcher, since the user corrects
+    // compilation errors while the watcher remains active and the server
+    // starts upon the first successful rebuild.
     let child_process: Arc<Mutex<Option<Child>>> = Arc::new(Mutex::new(None));
-    start_binary(&child_process, &binary_path, &options.run)?;
+    if build_project(&project_root, &bin_name)? {
+        start_binary(&child_process, &binary_path, &options.run)?;
+    } else {
+        output::error("Initial build failed; watching for fixes. The server will start once the build succeeds.");
+    }
 
     let watch_paths = if options.watch.is_empty() {
         default_watch_paths(&project_root)
@@ -155,6 +157,36 @@ pub fn start_dev_server(options: DevOptions) -> Result<(), Box<dyn std::error::E
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
         }
 
+        // Report a server that exited on its own without terminating the
+        // watcher, since the user corrects runtime failures in the same
+        // manner as compilation failures while the watcher remains active.
+        // The slot is cleared so the next successful build starts a fresh
+        // process rather than attempting a graceful swap with a dead child.
+        {
+            let mut guard = child_process.lock().unwrap();
+            if let Some(ref mut child) = *guard {
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        if status.success() {
+                            output::info("Server exited; waiting for changes.");
+                        } else {
+                            output::error(&format!(
+                                "Server exited with status {status}; waiting for changes."
+                            ));
+                        }
+                        *guard = None;
+                    }
+                    Ok(None) => {}
+                    Err(err) => {
+                        output::error(&format!(
+                            "Failed to poll server status ({err}); waiting for changes."
+                        ));
+                        *guard = None;
+                    }
+                }
+            }
+        }
+
         // Try to rebuild if requested and not already building
         let rebuild_requested = *should_rebuild.lock().unwrap();
         let already_building = *build_in_progress.lock().unwrap();
@@ -176,14 +208,36 @@ pub fn start_dev_server(options: DevOptions) -> Result<(), Box<dyn std::error::E
             thread::spawn(move || {
                 let success = build_project(&root, &bname).unwrap_or(false);
                 if success {
-                    // Graceful swap: SIGTERM → wait → start new binary
+                    // When no server is running, which follows an initial
+                    // build failure or a server crash, the fresh binary is
+                    // started directly. Otherwise a graceful swap is
+                    // performed through SIGTERM with a wait before restart.
+                    let had_server = child_lock.lock().unwrap().is_some();
                     graceful_stop(&child_lock);
-                    let _ = start_binary(&child_lock, &bpath, &run_opts);
-                    println!("{}", "Server restarted with new code.".green());
-                } else {
+                    match start_binary(&child_lock, &bpath, &run_opts) {
+                        Ok(()) => {
+                            if had_server {
+                                println!("{}", "Server restarted with new code.".green());
+                            } else {
+                                println!("{}", "Build succeeded; server started.".green());
+                            }
+                        }
+                        Err(err) => {
+                            println!(
+                                "{}",
+                                format!("Build succeeded but the server failed to start ({err}); waiting for changes.").yellow()
+                            );
+                        }
+                    }
+                } else if child_lock.lock().unwrap().is_some() {
                     println!(
                         "{}",
                         "Build failed, old server is still running.".yellow()
+                    );
+                } else {
+                    println!(
+                        "{}",
+                        "Build failed; no server is running. Fix the errors and save to retry.".yellow()
                     );
                 }
                 *build_flag.lock().unwrap() = false;
@@ -195,12 +249,18 @@ pub fn start_dev_server(options: DevOptions) -> Result<(), Box<dyn std::error::E
 }
 
 /// Build the project binary. Returns true on success.
+///
+/// Standard output is inherited rather than piped, since a piped stream
+/// that is never drained risks deadlock when the pipe buffer fills, with
+/// the consequence that the build would stall while the watcher waits.
+/// Standard error is piped and streamed line by line so that compilation
+/// progress remains visible in realtime while the watcher remains active.
 fn build_project(project_root: &Path, bin_name: &str) -> Result<bool, Box<dyn std::error::Error>> {
     let mut cmd = Command::new("cargo");
     cmd.arg("build")
         .arg("--bin")
         .arg(bin_name)
-        .stdout(Stdio::piped())
+        .stdout(Stdio::inherit())
         .stderr(Stdio::piped())
         .current_dir(project_root);
 
