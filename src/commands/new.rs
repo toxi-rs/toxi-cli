@@ -1814,6 +1814,12 @@ mod tests {
         ];
         let mut section = String::from("\n[patch.crates-io]\n");
         for krate in &crates {
+            // Split-repo checkouts have no sibling crate dirs; only patch
+            // crates present on disk so generated projects fall back to
+            // published crates.io versions elsewhere.
+            if !root.join(krate).join("Cargo.toml").exists() {
+                continue;
+            }
             let path = root.join(krate).display().to_string();
             section.push_str(&format!("{krate} = {{ path = \"{path}\" }}\n"));
         }
