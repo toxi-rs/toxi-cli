@@ -24,7 +24,7 @@ toxi-middleware = { version = "3", path = "../toxi-middleware" }
 toxi-db = { version = "3", path = "../toxi-db" }
 toxi-config = { version = "3", path = "../toxi-config" }
 toxi-queue = { version = "3", path = "../toxi-queue" }
-toxi-auth = { version = "4", path = "../toxi-auth" }
+toxi-auth = { version = "3", path = "../toxi-auth" }
 # template/cache/realtime/mail/storage/macros/utils/openapi/graphql/plugin were
 # removed: the CLI never imports them, they only show up in scaffold template
 # strings in commands/new.rs and commands/run.rs. Keeping them made every CLI
